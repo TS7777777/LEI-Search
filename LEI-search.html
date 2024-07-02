@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEI Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        .result pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LEI Search</h1>
+        <input type="text" id="legalName" placeholder="Enter Legal Name">
+        <input type="text" id="registrationCode" placeholder="Enter LEI Code">
+        <button onclick="searchLEI()">Search</button>
+        <button onclick="generateJSON()">Generate JSON</button>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        let searchData = [];
+
+        function searchLEI() {
+            const legalName = document.getElementById('legalName').value;
+            const registrationCode = document.getElementById('registrationCode').value;
+            const params = new URLSearchParams();
+
+            if (legalName) {
+                params.append('filter[entity.legalName]', legalName);
+            }
+            if (registrationCode) {
+                params.append('filter[lei]', registrationCode);
+            }
+
+            const url = `https://api.gleif.org/api/v1/lei-records?${params.toString()}`;
+
+            axios.get(url)
+                .then(response => {
+                    const resultDiv = document.getElementById('result');
+                    searchData = response.data.data;
+                    resultDiv.innerHTML = `<pre>${JSON.stringify(searchData, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('There was an error!', error);
+                });
+        }
+
+        function generateJSON() {
+            if (searchData.length === 0) {
+                alert('No data to generate JSON. Please perform a search first.');
+                return;
+            }
+
+            const jsonString = JSON.stringify(searchData, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'LEI_Data.json';
+            document.body.appendChild(a);
+            a.click();
+
+            setTimeout(() => {
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            }, 0);
+        }
+    </script>
+</body>
+</html>
