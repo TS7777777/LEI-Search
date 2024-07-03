@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LEI Search</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.16.9/dist/xlsx.full.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+        }
+        button {
+            background-color: #007BFF;
+            color: #fff;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .result {
+            margin-top: 20px;
+        }
+        .result pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LEI Search</h1>
+        <input type="text" id="legalName" placeholder="Enter Legal Name">
+        <input type="text" id="registrationCode" placeholder="Enter LEI Code">
+        <button onclick="searchLEI()">Search</button>
+        <button onclick="generateExcel()">Generate Excel</button>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        let searchData = [];
+
+        function searchLEI() {
+            const legalName = document.getElementById('legalName').value;
+            const registrationCode = document.getElementById('registrationCode').value;
+            const params = new URLSearchParams();
+
+            if (legalName) {
+                params.append('filter[entity.legalName]', legalName);
+            }
+            if (registrationCode) {
+                params.append('filter[lei]', registrationCode);
+            }
+
+            const url = `https://api.gleif.org/api/v1/lei-records?${params.toString()}`;
+
+            axios.get(url)
+                .then(response => {
+                    const resultDiv = document.getElementById('result');
+                    searchData = response.data.data;
+                    resultDiv.innerHTML = `<pre>${JSON.stringify(searchData, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('There was an error!', error);
+                });
+        }
+
+        function generateExcel() {
+            if (searchData.length === 0) {
+                alert('No data to generate Excel. Please perform a search first.');
+                return;
+            }
+
+            const wb = XLSX.utils.book_new();
+            searchData.forEach(record => {
+                const ws_data = [
+                    ['(Primary) Legal Name', record.attributes.entity.legalName],
+                    ['Other Names', record.attributes.entity.otherNames ? record.attributes.entity.otherNames.map(name => name.name).join(', ') : ''],
+                    ['Registered At', record.attributes.entity.registrationAuthority ? record.attributes.entity.registrationAuthority.registrationAuthorityEntityID : ''],
+                    ['Jurisdiction Of Formation', record.attributes.entity.legalJurisdiction],
+                    ['General Category', record.attributes.entity.entityCategory],
+                    ['Entity Legal Form', `${record.attributes.entity.legalForm.label} (${record.attributes.entity.legalForm.abbreviation})`],
+                    ['Entity Status', record.attributes.entity.entityStatus],
+                    ['Entity created at', record.attributes.entity.creationDate],
+                    ['S&P Global Company ID', record.attributes.entity.globalUltimateParent ? record.attributes.entity.globalUltimateParent.id : ''],
+                    ['Legal Address', record.attributes.entity.legalAddress ? `${record.attributes.entity.legalAddress.addressLines.join(', ')}, ${record.attributes.entity.legalAddress.city}, ${record.attributes.entity.legalAddress.country}` : ''],
+                    ['Headquarters Address', record.attributes.entity.headquartersAddress ? `${record.attributes.entity.headquartersAddress.addressLines.join(', ')}, ${record.attributes.entity.headquartersAddress.city}, ${record.attributes.entity.headquartersAddress.country}` : ''],
+                    ['Other Addresses', record.attributes.entity.otherAddresses ? record.attributes.entity.otherAddresses.map(address => `${address.addressLines.join(', ')}, ${address.city}, ${address.country}`).join('; ') : ''],
+                    ['Registration Date', record.attributes.registration.initialRegistrationDate],
+                    ['Last Update', record.attributes.registration.lastUpdateDate],
+                    ['Status', record.attributes.registration.status],
+                    ['Next Renewal', record.attributes.registration.nextRenewalDate],
+                    ['LEI Issuer', record.attributes.registration.managingLOU],
+                    ['Corroboration Level', record.attributes.registration.validationSources],
+                    ['Data Validated At', record.attributes.entity.registrationAuthority ? record.attributes.entity.registrationAuthority.validationAuthority : ''],
+                    ['Data Validated As', record.attributes.entity.registrationAuthority ? record.attributes.entity.registrationAuthority.validationAuthorityEntityID : '']
+                ];
+
+                const ws = XLSX.utils.aoa_to_sheet(ws_data);
+                XLSX.utils.book_append_sheet(wb, ws, record.id);
+            });
+
+            XLSX.writeFile(wb, 'LEI_Data.xlsx');
+        }
+    </script>
+</body>
+</html>
